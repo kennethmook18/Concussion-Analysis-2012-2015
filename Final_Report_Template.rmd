@@ -1,0 +1,382 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gganimate)
+library(gifski)
+library(rust)
+library(modelr)
+
+#Put Necessary Libraries Here
+
+concussions <- read.csv("https://query.data.world/s/zvtutgynbzvuegh4oooj2mwtdviplm", header=TRUE, stringsAsFactors=FALSE);
+
+head_injuries <- read.csv("https://query.data.world/s/ivlfgk6ljjvo3zxjadntkhi6nfm7i2", header=TRUE, stringsAsFactors=FALSE);
+
+
+fb_injury = full_join(concussions, head_injuries, by="Player")
+#view(fb_injury)
+#view(concussions)
+#view(head_injuries)
+
+#Cleaning
+
+fb <- fb_injury%>%
+ mutate(blah = (ifelse(Play.Time.After.Injury == 'Did not return from injury', '0 downs', Play.Time.After.Injury)))%>%
+  select(-ID, -Game, -Unknown.Injury., -Season, -Team.s..during.concussion.incidents.2012.2014, -Roles.during.injuries, -Biography, -Wikipedia.Url, -Image)%>%
+  rename('injuries_2012_2013' = 'X2012.2013...Number.of.Injuries', 'games_missed_2012_2013' = 'X2012.2013...Games.Missed', 'injuries_2013_2014' = 'X2013.2014...Number.of.Injuries',  'games_missed_2013_2014' = 'X2013.2014...Games.Missed',  'injuries_2014_2015' = 'X2014.2015...Number.of.Injuries',  'games_missed_2014_2015' = 'X2014.2015...Games.Missed', 'Total_number_of_injuries' = 'Total.Number.of.Injuries..2012.2014.',  'total_games_missed' = 'Total.Games.Missed..2012.2014.',  'first_concussion_age' = 'Age.first.concussion..2012.2014.',  'current_age' = 'Current.Age..approx..')%>%
+  separate(Date, into=c('injury_day','injury_month','injury_year'), sep = '/')%>%
+  separate(Date.of.Birth, into=c('birth_day', 'birth_month', 'birth_year'), sep = '/')%>%
+  separate(blah, into=c('downs_played_after_injury', 'downs'), sep=' ', convert = T)%>%
+  separate(Average.Playtime.Before.Injury, into=c('avg_downs_before_injury', 'downs2'), sep=' ', convert = T)%>%
+  select(-downs, -downs2, -Play.Time.After.Injury)%>%
+  complete(Player)
+
+view(fb)
+```
+# Final Paper
+STOR320.001
+
+Fall Semester, 2020
+
+Group members: Chris Davis, Alex Huml, Sumi Jeong, Casey Mook
+
+
+# INTRODUCTION
+
+Sports are ubiquitous worldwide, but with sports come injuries. No matter the sport, injuries play a large part in athletes being able to participate. NFL teams are worth billions of dollars, and thus the players on the field are important to generating revenue. As a result, there has been a lot of research into techniques that will prevent injuries, such as scheduled rest days, different kinds of stretching, and even analyzing an athlete’s diet. However, as the field of medicine has grown, the discovery of concussions has become a central issue within the sport of Football. Today, teams employ specialists to ensure player safety and reduce the risk of their players being concussed. 
+ 
+Concussions are defined by the cdc as 'a type of traumatic brain injury—or TBI—caused by a bump, blow, or jolt to the head or by a hit to the body that causes the head and brain to move rapidly back and forth.' At first, concussions were largely discredited due to the impact they could have on sports and the money loss they could cause.  Since then, concussions have been accepted as a serious injury with lasting effects and has resulted in extensive research into equipment to better prevent head injuries. Despite wearing protective helmets, football involves large amounts of violent physical contact that results in numerous head injuries. This makes concussion research vital to sports in general, but football more than any other. Thus, large sums of money have gone into developing helmets and identifying new rule changes that prevent concussions from occurring.
+ 
+Because of the popularity of football in American culture with kids playing as early as five-years-old and continuing to professional and collegiate levels, our group decided to investigate the degree to which there has been success with concussion prevention. We focused specifically on data from the NFL and began to ask questions such as what position has the most concussions, does the winning or losing team suffer more head injuries, and has the number of concussions gone down in successive seasons? Our goal was to both identify the validity and scope of the issue many people have heard so much about, as well as reveal any trends that supported or refuted the effectiveness of new technology and rules in the game of football. This led us to ask the following central questions:
+ 
+Question 1: Has new equipment and rule changes implemented by the NFL been effective in lowering the number of head injuries and concussions? 
+ 
+Question 2: What indicators best show the occurrence and severity of concussions? 
+ 
+The largest benefit of looking into these questions is that research into the field of concussions and concussion prevention is ongoing. New findings are still coming out and both players and their parents are facing the tough decision of whether it's worth it to play. It has already been proven that multiple concussions can result in serious long term brain damage, and has even resulted in several professional players being paralyzed due to violent head injuries. However, what if we could provide answers that football is becoming safer, or even determine decisions athletes can make in the game to decrease their chance of getting a concussion? Parents might then be more inclined to let their kids play, and even instruct them to play safer positions that will reduce their risk of injury. Or, the NFL could focus helmet design on protection from concussions that are aligned with high-risk positions and thereby save its players from brain trauma down the road. With these viable possibilities comes the excitement for finding answers. Our analysis will not only answer the questions proposed but also give results that will better educate others on the issue of concussions in the NFL. 
+
+
+# DATA
+
+
+Our data comes from Data World and was created by Alice. Alice has created 44 datasets for Data World and compiled them from different sources, which she reveals upon request.  The NFL dataset from which we got our data has several different subsections. We decided to only use the concussion and head injury datasets because those included all the information we felt was needed to analyze the problem. Once combined, we had a comprehensive list of all the players who played a game during the 2012-2015 seasons. We also possessed the data on their injury, specifically their concussion or head injury, as well as other variables needed to break them down into specific categories. 
+ 
+The final dataset we compiled had many variables, not all of which were used, and not all of which were tidy. From there, we tried to use only the pieces of information that we felt were important in answering our questions. For example, to look at when in the game players were most likely to get a concussion, we tidied the data so that only the players who had concussions, not head injuries, remained. Then we plotted the downs prior to concussion to see how often concussions occurred at each value. This produced the graph below, which shows that a larger number of concussions occur later in the game rather than earlier.
+
+
+
+```{r, echo=FALSE, message = FALSE}
+Downs_prior = fb %>%
+  filter(Reported.Injury.Type == "Concussion") %>%
+  drop_na(avg_downs_before_injury) %>%
+  mutate("Downs Prior to Concussion" = trunc(avg_downs_before_injury)) %>%
+  select("Downs Prior to Concussion")
+
+Downs_prior %>%
+  ggplot(aes(x = `Downs Prior to Concussion`)) +
+  geom_bar()
+
+```
+
+
+However, variables outside of downs prior to concussion were used to evaluate other proposed questions. Below is a table that includes several lines of information from our large dataset and displays all the variables we had at our disposal. First, there is the player name and the team they played for during that season. Some names are repeated if they had concussions in more than one season, such as Alex Smith who played for the Cleveland Browns in 2012 and the Cincinnati Bengals in 2013, and had concussions in both years. Then there is the day, month, and year of each concussion, followed by the name of the opposing team and the position of the player. The position is listed as cornerback, wide receiver, and so on, not just offense or defense, which is useful when trying to determine if certain positions are safer than others. Next is the categorical variable preseason injuries, which is “yes” if the player had one that year and “no” if not. After preseason injury is winning team and week of injury; winning team is a “yes” if the player’s team won and a “no” if they lost, and the week of injury is a numerical value corresponding to the week number of the season in which the player sustained the concussion. Then there are weeks of injury and games missed, which displays the numerical value for how many games the player was unable to participate in due to the concussion. Following games missed is reported injury type; because not all head injuries are concussions this column delineates between the two. The next two variables are total snaps and the average downs before injury, both of which display numbers to represent either the total snaps played by the individual or the average number of downs played before injuries to that individual. The following 6 variables are the numerical values for the number of injuries or games missed in the 2012-2013, 2013-2014, and 2014-2015 seasons. These six variables are then followed by their totals for each player, the number of injuries, and the number of games missed between 2012-2015. Next is the age each player got their first concussion in the NFL, in years, followed by their current age in years. After the current age variable is the player’s birthday split into the day, month, and year. Lastly, there is the variable downs played after injury, which displays the number of downs the player was able to participate in after their injury.
+
+
+```{r, echo=FALSE, message = FALSE}
+fb%>%head(6)
+```
+
+
+# RESULTS
+
+
+
+
+```{r, include=FALSE, message = FALSE}
+
+fb10 <- fb %>% distinct( Player, .keep_all=TRUE)%>%
+  select(injuries_2012_2013, injuries_2013_2014, injuries_2014_2015, everything())%>%
+  
+  pivot_longer(injuries_2012_2013:injuries_2014_2015, names_to = 'season', values_to = 'Injuries') %>% 
+
+  mutate(season=ifelse(season == 'injuries_2012_2013', '2012-2013', ifelse(season == 'injuries_2013_2014', '2013-2014', '2014-2015')))
+
+fb11 <- fb%>% distinct(Player, .keep_all = TRUE)%>%
+  select(games_missed_2012_2013, games_missed_2013_2014, games_missed_2014_2015, Player) %>%
+    
+pivot_longer(games_missed_2012_2013:games_missed_2014_2015, names_to = 'season', values_to = 'Games_Missed') %>%
+  
+  mutate(season=ifelse(season == 'games_missed_2012_2013', '2012-2013', ifelse(season == 'games_missed_2013_2014', '2013-2014', '2014-2015')))
+
+
+fb12 <- left_join(fb10,fb11, by = c('Player','season'))
+view(fb12)
+
+fb13 <- fb12%>%mutate(season=ifelse(season == '2012-2013', 1, ifelse(season == '2013-2014', 2, 3)))%>%
+  mutate(Winning.Team. = ifelse(Winning.Team. == 'Yes', 2, 1))
+view(fb13)
+
+view(fb)
+
+
+
+```
+
+Question 1: Has new equipment and rule changes implemented by the NFL been effective in lowering the number of head injuries and concussions? 
+ 
+The answer to ‘has new equipment and rule changes implemented by the NFL been effective in lowering the number of concussions’ is fairly straightforward, but not necessarily simple. To begin, we began by visualizing the relation between season and the number of injuries, which can be seen in the first graph below. As each season is plotted, there is a significant decrease in injuries through consecutive bars. This is representative of a strong negative relationship, which would mean that the NFL has done a good job.
+
+
+
+```{r, echo=FALSE, message = FALSE, warning = FALSE}
+p <- ggplot(fb12, aes(season, Injuries))+
+  geom_col(fill='steelblue')+
+   labs(x='Season', y = '')
+
+p + transition_states(season, wrap = FALSE) +
+  shadow_mark() +
+  enter_grow() +
+  enter_fade()
+```
+
+However, what about the relationship between season and games missed? Part of the job of limiting concussions is also limiting severity. If the number of concussions goes down but the severity of each one overcompensates for the reduction in occurrence, then players are worse off than before. To check this scenario, we used the same plot with games missed instead of injuries. By doing so, we created the plot below, which is very similar to its injuries counterpart.  As each season is plotted, the number of games missed decreases through each added bar, indicating a successful job by the NFL.
+
+```{r, echo=FALSE, message = FALSE, warning = FALSE}
+
+p1 <-  ggplot(fb12, aes(season, Games_Missed))+
+  geom_col(fill = "#D55E00")+
+  labs(x='Season', y = 'Games Missed')
+
+p1 + transition_states(season, wrap = FALSE) +
+  shadow_mark() +
+  enter_grow() +
+  enter_fade()
+
+
+```
+
+Next, to further prove what we had found, our group decided to create four different linear models of the data. The first model uses season to predict games missed, the second has games missed predicting season, the third uses season to predict injuries, and the final models uses injuries to predict the season. The goal of using these models is not to identify the best model and use it to predict a variable, but use the coefficients to look and see how each set of variables interact.  The results conclusively backed what was found in the graphs above. Each model produced a negative coefficient for the explanatory variable, which means that when the season was the dependent variable, the number of games missed or injuries increased. When the season was the independent variable, the more recent seasons had lower games missed and injuries predictions. The output below is a summary of model one, which is similar to all the others. The one thing to note is that these models are not good fits for the data based on the residuals and R-squared values, but we are still able to draw conclusions from them because we are looking for positive or negative trends over time, not the best model to predict a variable.
+
+```{r, echo=FALSE, message = FALSE}
+set.seed(50)
+fb13$SPLIT = sample(x=c('TRAIN1', 'TEST1'), size=1029, replace=T, prob=c(0.8,0.2))
+TRAIN1= fb13%>% filter(SPLIT == 'TRAIN1')
+TEST1 = fb13%>% filter(SPLIT == 'TEST1')
+
+mod1 = lm(Games_Missed~season, TRAIN1)
+mod2 = lm(season~Games_Missed, TRAIN1)
+mod3 = lm(Injuries~season, TRAIN1)
+mod4 = lm(season~Injuries, TRAIN1)
+
+test = TRAIN1%>%
+add_predictions(mod1, var = "m1pred")%>%
+add_predictions(mod2, var = "m2pred")%>%
+add_residuals(mod1, var = "m1res")%>%
+add_residuals(mod2, var = "m2res")
+summary(mod1)
+#summary(mod2)
+#summary(mod3)
+#summary(mod4)
+
+```
+
+At this point, we had thoroughly completed the question we had originally proposed, but another had resulted from the exploratory process, how well did this trend apply to teams.  In the NFL, different teams play with different styles and different emphasis on specific parts of the game, usually based on what coaches feel is best for the team's success. Do these differences affect how well the NFL’s new equipment and rules have worked? To do this we created the plot below which shows the number of games missed per team for each of the three seasons.  Based on the resulting figure, we were able to say the Jacksonville Jaguars were the worst team in the 2012-2013 season and the Arizona Cardinals were the worst in 2014-2015. Additionally, the trend between seasons is confirmed again as the games missed on each team decreases in successive seasons.
+
+```{r, echo=FALSE, message = FALSE, warning=FALSE}
+
+G<-fb12%>%group_by(Team, season)%>%
+  ggplot(aes(Team, Games_Missed, fill = season))+
+    geom_col() +
+  scale_color_viridis_d() +
+  labs(x = "NFL Team", y = "Games Missed") +
+  ggtitle("Games Missed per NFL Team per Season") +
+    theme(legend.position = "right") +
+  coord_flip()
+G + theme(axis.text.x = element_text(angle = 0, hjust = 1))
+
+
+```
+
+Yet, as before, there is value in comparing the games missed visual representation with one of the injuries as shown below.  When head injuries are graphed by team, the Jacksonville Jaguars are again the worst offenders in 2012-2013, but the Cleveland Browns and Cincinnati Bengals had large amounts of head injuries as well. Additionally, instead of the Arizona Cardinals, the Cincinnati Bengals had the largest amount of injuries in the 2014-2015 season. This reveals that while the Browns and Bengals may not have many severe head injuries, they do occur more often than would be expected by looking just at the games missed.
+
+```{r, echo=FALSE, message = FALSE, warning=FALSE}
+fb12 %>%
+#  filter(`Reported.Injury.Type` == "Concussion") %>%
+  group_by(Team) %>%
+  ggplot() +
+  geom_col(mapping = aes(x = Team, y = Injuries, fill = season)) +
+  ggtitle("Team Head Injuries by Year") +
+  ylab("Total Team Head Injuries") +
+  coord_flip()
+
+```
+
+
+
+Question 2: What indicators best show the occurrence and severity of concussions? 
+
+
+```{r, include=FALSE, message = FALSE}
+MAE.func = function(vect) {
+  return(mean(abs(vect)))
+}
+```
+
+
+```{r, include=FALSE, message = FALSE}
+set.seed(50)
+concussedPlayers <- filter(fb, Reported.Injury.Type == "Concussion")
+
+concussedPlayers2 = concussedPlayers[!is.na(concussedPlayers$Games.Missed),]
+concussedPlayers2 = concussedPlayers2[!is.na(concussedPlayers2$Position),]
+concussedPlayers2 = concussedPlayers2[!is.na(concussedPlayers2$current_age),]
+concussedPlayers2 = concussedPlayers2[!is.na(concussedPlayers2$avg_downs_before_injury),]
+concussedPlayers2 = concussedPlayers2[!is.na(concussedPlayers2$Week.of.Injury),]
+concussedPlayers2 = concussedPlayers2[!is.na(concussedPlayers2$Pre.Season.Injury.),]
+concussedPlayers2 = concussedPlayers2[-c(156),]
+
+concussedPlayers2$SPLIT = sample(x=c('TRAIN', 'TEST'), size=277, replace=T, prob=c(0.8,0.2))
+TRAIN= concussedPlayers2%>% filter(SPLIT == 'TRAIN')
+TEST = concussedPlayers2%>% filter(SPLIT == 'TEST')
+
+model1 = lm(log(Games.Missed+1) ~ current_age, data = TRAIN)
+#model2 = lm(Games.Missed ~ Position, data = TRAIN)
+model2 = lm(log(Games.Missed+1) ~ avg_downs_before_injury, data = TRAIN)
+model3 = lm(log(Games.Missed+1) ~ Week.of.Injury, data = TRAIN)
+model4 = lm(log(Games.Missed+1)~ current_age + avg_downs_before_injury, data = TRAIN)
+#model6 = lm(Games.Missed ~ current_age + Position, data = TRAIN)
+model5 = lm(log(Games.Missed+1) ~ avg_downs_before_injury + Week.of.Injury, data = TRAIN)
+model6 = lm(log(Games.Missed+1) ~ current_age + Week.of.Injury, data = TRAIN)
+model7 = lm(log(Games.Missed+1) ~ current_age + Week.of.Injury + avg_downs_before_injury, data = TRAIN)
+#summary(model5)
+#summary(model7)
+#summary(model1)
+
+test.cuss2 = concussedPlayers2 %>%
+  add_predictions(model1, var = "lm1pred") %>%
+  #add_predictions(model2, var = "lm2pred") %>%
+  add_predictions(model2, var = "lm3pred") %>%
+  add_predictions(model3, var = "lm4pred") %>%
+  add_predictions(model4, var = "lm5pred") %>%
+  #add_predictions(model6, var = "lm6pred") %>%
+  add_predictions(model5, var = "lm7pred") %>%
+  add_predictions(model6, var = "lm8pred") %>%
+  add_predictions(model7, var = "lm9pred") %>%
+  
+  add_residuals(model1, var = "lm1res") %>%
+  #add_residuals(model2, var = "lm2res") %>%
+  add_residuals(model2, var = "lm3res") %>%
+  add_residuals(model3, var = "lm4res") %>%
+  add_residuals(model4, var = "lm5res") %>%
+  #add_residuals(model6, var = "lm6res") %>%
+  add_residuals(model5, var = "lm7res") %>%
+  add_residuals(model6, var = "lm8res") %>%
+  add_residuals(model7, var = "lm9res")
+#str(test.cuss2)
+
+#MAE.func(test.cuss2$lm1res)
+#MAE.func(test.cuss2$lm2res)
+#MAE.func(test.cuss2$lm3res)
+#MAE.func(test.cuss2$lm4res)
+#MAE.func(test.cuss2$lm5res)
+#MAE.func(test.cuss2$lm6res)
+#MAE.func(test.cuss2$lm7res)
+#MAE.func(test.cuss2$lm8res)
+#MAE.func(test.cuss2$lm9res)
+
+summary(model4)
+```
+
+
+```{r, echo=FALSE, message = FALSE}
+lin_mods <- gather_residuals(concussedPlayers2, model1, model2, model3, model4, model5, model6, model7)
+
+lin_mods2 = lin_mods %>%
+  group_by(model) %>%
+  summarise(mean_resid = mean(resid), 
+            mean_abs_resid = mean(abs(resid)),
+            .groups = 'keep')
+
+ 
+```
+
+For our second question, we decided that the ideal way to solve this problem was to create multiple exponential models of the data, all predicting games missed but with different explanatory variables. Then the best variable or variables for predicting games missed would be those in the most accurate model, based on a training set with eighty percent of the overall data.  The reason we decided to use an exponential model instead of linear was because of the graph of games missed shown below. Originally, we tried using linear models, but the residuals were large and biased, making them a poor fit. From there, we generated the bar graph below to visualize the data and found that the counts for each value in games missed decreases along a seemingly exponential curve. This guided us to create exponential models that fit the data points significantly better.
+
+```{r, echo=FALSE, message = FALSE}
+concussedPlayers2 %>%
+  ggplot(aes(x = Games.Missed)) +
+  geom_bar(fill="skyblue") + 
+  ggtitle("Instances of each number of Games Missed") +
+  labs(x = "Games Missed", y = "Count") 
+```
+
+Overall, we created seven different models, and we used the mean absolute error (MAE) to determine which one fitted the data best. The fourth model, with current age and average downs before injury as an explanatory variable, does the best job of predicting the games missed. However, even though it had the lowest MAE of  0.4700958,  all the models were relatively close. Below is a box plot of the residuals for each model and there is something to note. All the residuals are extremely close to zero, which is good. Ideally, the residuals should vary randomly around an average of zero, which all these models essentially have.
+
+```{r, echo=FALSE, message = FALSE}
+lin_mods %>%
+  ggplot(aes(model, resid, fill = model))+
+  geom_boxplot(alpha = .3)+
+  geom_point(alpha = .2, color='black')+
+  ggtitle("Mean Residual by Model") +
+  theme(legend.position = 'none')
+```
+
+Next, we visualized the absolute error with the graph below. The first thing we noticed was how close the absolute residuals were for each model. In the previous graph, all the models are close yet there are noticeable changes, but in this case, there is no model that appears to be far worse or far better than another. Also, the first quartile in models one, three and six are lower than that in model four. However, the best model is still the fourth because, even if by only a little, it does have the lowest MAE.
+
+```{r, echo=FALSE, message = FALSE}
+lin_mods %>%
+  ggplot(aes(model, abs(resid), fill = model))+
+  geom_boxplot(alpha = .3)+
+  geom_point(alpha = .2, color='black')+
+  ggtitle("Mean Absolute Residual by Model") +
+  theme(legend.position = 'none')
+```
+
+
+
+After determining the best model, we wanted to look at a graph of games missed versus the current age of a player to see what the visual representation of the relationship looked like.  What we found aligned with what we were expecting based on the models, a weak positive relationship. The data in the graph below shows there is not a strong pattern within the points, but most are located where the player is younger and shows a lower games missed value. Additionally, there is a slight trend of increasing games missed with increasing player age. Rather than this supporting the notion that younger players have shorter concussion time frames, it is more likely due to the average NFL career being close to three years. This would result in a larger sample of data for younger ages rather than older ones.
+
+```{r, echo=FALSE, message = FALSE}
+concussedPlayers2 %>%
+  ggplot(aes(x = current_age, y = Games.Missed)) +
+  geom_count(color = "#009E73") +
+  ggtitle("Games Missed by Age") +
+  labs(x = "Player Age", y = "Games Missed") 
+```
+
+Lastly, in our models, we failed to include a player's position due to the nature of the variable. However, different positions play different roles on the football field, and can therefore have distinctly different injuries. To see if the difference in roles played a part in the number of concussions we created the plot of position by total position concussions below.  Based on what is shown, it is clear that cornerbacks have the most concussions and defensive positions tend to have more concussions in general, which was surprising considering that it is the offensive player who is usually the one being hit. While we could have separated positions into offensive or defensive labels in order to include it in our models, we found that special teams could lead to false conclusions. Because both offensive and defensive players play on special teams, it could lead to certain position groups having more concussions. That could potentially result in skewed data, and lead to incorrect models and false conclusions, so we thought it was best to avoid.  
+
+```{r, echo=FALSE, message = FALSE}
+positionCount <- table(concussedPlayers$Position) #Shows the injury count of each position
+
+
+fb %>%
+  filter(`Reported.Injury.Type` == "Concussion") %>%
+  group_by(Position) %>%
+  ggplot() +
+  geom_bar(mapping = aes(x = Position), fill = 'steelBlue') +
+  ggtitle("Total Concussions by Position") +
+  ylab("Total Position Concussions") +
+  coord_flip()
+
+
+```
+
+
+
+# CONCLUSION
+
+Our objective has been to answer two questions through detailed analysis; has the NFL been successful, and what are the best indications of getting a concussion as well as its severity.  After investigation, we found that the new equipment and rule changes the NFL has done have had a positive impact on the game. Both head injuries and games missed have decreased significantly in successive seasons, which is supported both visually and by the coefficients of several linear models. As a follow-up question, we also investigated how the changes through seasons were for teams and found the same overall trend. The games missed and injuries decreased for each team in successive seasons. We were also able to determine the teams that the NFL needs to focus on more, due to the large amounts of head injuries and/or games missed among their players. Specifically, the style of football played by the Jaguars, Bengals, Browns, and Cardinals play needs more attention because their players are getting hurt at a higher rate than other teams, in their respective seasons.
+ 
+Additionally, we were able to identify the best indicators of a player getting a head injury.  Through exponential modeling, we found the variables that best-predicted games missed. By predicting games missed, instead of the number of injuries, we were able to include both frequency and severity in one variable. What we found was that current age and average downs before injury together do the best job of estimating games missed. However, after looking at a graph of player age versus games missed, we were able to see that the positive relationship between the two variables is relatively weak. Also, we took into account positions, but outside of modeling. By looking at total concussions by position, it is clear that cornerbacks have more concussions than any other position, and defensive positions tend to have more concussions than offensive ones.
+ 
+Upon first glance, these results may seem to be fun trivia facts with no real value.  However, we would argue the exact opposite, these are some of the most important things to know in the world of football. For games to be played, players are needed, and players will not participate if they don’t believe it’s safe. The dangers of concussions and the brain damage they can cause long term has been extensively documented, and one of the consequences of this knowledge is that people are scared to play. There have already been decreases in youth football numbers, which many have attributed to parents fearing for the health of their children.  But what if it could be shown that football has gotten safer, would the number of youth players increase again? Also, what about current players, those who are playing now should not be readily dismissed and that’s where our second question is relevant.  If an athlete knows when they are more likely to get injured, they can then take measures to prevent it.  For example, we determined current age and average downs before injury to be the two best indicators of games missed. Additionally, as either current age or the average downs increase, the number of games missed increases as well. In the real world, this means that as a player gets older and/or farther into a game, the more likely they are to get a head injury, as well as a more severe head injury. Knowing this, players can adjust and make decisions like warming up for a shorter amount of time to conserve energy for later in the game, or as the athlete gets older they may try and take better care of their body along with focusing on safer techniques to use on the field.  These decisions by the individual can help protect them from getting hurt immediately, as well as save them down the road after they retire.  Furthermore, this information can also help provide more targeted research. If the NFL is aware of what makes a player more at risk of a concussion, they can direct research to develop ways to make the game safer for those individuals, which would hopefully provide answers sooner and make larger impacts once applied.
+ 
+In short, this is an important topic with many positive repercussions that need to be pursued and has been. The research of concussions in the NFL, as well as ways to prevent them, is an important part of the game today, and it carries down. What makes the game safer at the professional level will be transferred and applicable at every other level, all the way down to youth leagues.  All it takes is detail and time.  By adding more seasons and more variables, such as what the new program NextGen Stats provides, the models and answers will become more accurate. This will in turn allow for better adjustments to equipment as well as player preparation. In a sport where everything is so fast-paced, just that little change can make all the difference in the world. One small correction can result in athletes playing longer, and not having brain damage or serious health issues down the road. The safety of its players is how the tradition of professional football will be perpetuated, and the key to being safe is to prevent concussions, which is why our analysis and the research being done nationally is so important.
+
+
+
+
+
+
+
